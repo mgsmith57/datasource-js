@@ -11,13 +11,25 @@ interface DataSourceFilterFunction {
 }
 
 interface DataSourceAggregator {
-    aggregate(name: string, value: any) : any;
+    aggregate(name: string, value: any, data?: any[]) : any;
 }
 
 class AggregatorCount implements DataSourceAggregator {
     count: number = 0;
     public aggregate(name: string, value: any) : number {
         return ++this.count;
+    }
+}
+
+class AggregatorCountDistinct implements DataSourceAggregator {
+    seen: Set<any> = new Set();
+    count: number = 0;
+    public aggregate(name: string, value: any) : number {
+        if (!this.seen.has(value)) {
+            ++this.count;
+            this.seen.add(value);
+        }
+        return this.count;
     }
 }
 
@@ -74,25 +86,31 @@ class AggregatorFirstValue implements DataSourceAggregator {
 }
 
 class DataSourceAggregatorFactory {
+    static instance: DataSourceAggregatorFactory = new DataSourceAggregatorFactory();
     registry: Map<string, Function>;
 
     constructor() {
         this.registry = new Map;
-        this.registry.set('count', () => new AggregatorCount() );
-        this.registry.set('sum', () => new AggregatorSum() );
-        this.registry.set('average', () =>  new AggregatorAverage() );
-        this.registry.set('averageNonZero', () =>  new AggregatorAverageIgnoreZeros() );
-        this.registry.set('first', () =>  new AggregatorFirstValue() );
-        this.registry.set('last', () =>  new AggregatorLastValue() );
-        this.registry.set('group', () =>  new AggregatorLastValue() );
+        this.registry.set('count', (meta) => new AggregatorCount() );
+        this.registry.set('countDistinct', (meta) => new AggregatorCountDistinct() );
+        this.registry.set('sum', (meta) => new AggregatorSum() );
+        this.registry.set('average', (meta) =>  new AggregatorAverage() );
+        this.registry.set('averageNonZero', (meta) =>  new AggregatorAverageIgnoreZeros() );
+        this.registry.set('first', (meta) =>  new AggregatorFirstValue() );
+        this.registry.set('last', (meta) =>  new AggregatorLastValue() );
+        this.registry.set('group', (meta) =>  new AggregatorLastValue() );
     }
 
-    public make(name : string) : DataSourceAggregator {
+    public make(name : string, ds : DataSource) : DataSourceAggregator {
         const aggregator = this.registry.get(name);
         if (!aggregator) {
             throw `No aggregator found with name ${name}`
         }
-        return aggregator();
+        return aggregator(ds.meta);
+    }
+
+    public static get() : DataSourceAggregatorFactory {
+        return DataSourceAggregatorFactory.instance;
     }
 }
 
@@ -171,18 +189,24 @@ class DataSource {
     }
 
     public group(aggregate: AggregatorParameter[], comparator?: (ds: Map<string, DataSourceMeta>, l: any[], r: any[]) => number) : DataSource {
-        const aggregatorFactory = new DataSourceAggregatorFactory();
+        const aggregatorFactory = DataSourceAggregatorFactory.get();
         const aggregatorMap = aggregate.reduce((o, i) => o.set(i.alias || i.field, i), new Map);
 
         const groupFields : string[] = aggregate.filter(x => x.aggregator === 'group').map(x => x.field);
         const groupIndex = new Map;
+
         const sourceIndex : number[] = [];
         const metaSorted : DataSourceMeta[] = aggregate
             .map(x => x.alias || x.field)
             .map((field,  index) => { return { name: field, index: index}});
 
         metaSorted.forEach(m => {
-            sourceIndex[m.index] = this.meta.get(aggregatorMap.get(m.name).field).index;
+            const field = aggregatorMap.get(m.name).field;
+            const meta = this.meta.get(field);
+            if (!meta) {
+                throw "No field found with name " + field;
+            }
+            sourceIndex[m.index] = meta.index;
         });
 
         const data : any[] = [];
@@ -192,7 +216,7 @@ class DataSource {
                 data.push([]);
                 groupIndex.set(group, {
                     index: data.length - 1,
-                    aggregators: metaSorted.map(m => aggregatorFactory.make(aggregatorMap.get(m.name).aggregator))
+                    aggregators: metaSorted.map(m => aggregatorFactory.make(aggregatorMap.get(m.name).aggregator, this))
                 })
             }
 
@@ -200,7 +224,7 @@ class DataSource {
             const rowArray = data[groupMeta.index];
 
             metaSorted.forEach(m => {
-                rowArray[m.index] = groupMeta.aggregators[m.index].aggregate(m.name, row[sourceIndex[m.index]]);
+                rowArray[m.index] = groupMeta.aggregators[m.index].aggregate(m.name, row[sourceIndex[m.index]], row);
             });
         });
 

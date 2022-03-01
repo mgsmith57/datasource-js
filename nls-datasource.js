@@ -6,6 +6,19 @@ class AggregatorCount {
         return ++this.count;
     }
 }
+class AggregatorCountDistinct {
+    constructor() {
+        this.seen = new Set();
+        this.count = 0;
+    }
+    aggregate(name, value) {
+        if (!this.seen.has(value)) {
+            ++this.count;
+            this.seen.add(value);
+        }
+        return this.count;
+    }
+}
 class AggregatorSum {
     constructor() {
         this.total = 0;
@@ -61,22 +74,27 @@ class AggregatorFirstValue {
 class DataSourceAggregatorFactory {
     constructor() {
         this.registry = new Map;
-        this.registry.set('count', () => new AggregatorCount());
-        this.registry.set('sum', () => new AggregatorSum());
-        this.registry.set('average', () => new AggregatorAverage());
-        this.registry.set('averageNonZero', () => new AggregatorAverageIgnoreZeros());
-        this.registry.set('first', () => new AggregatorFirstValue());
-        this.registry.set('last', () => new AggregatorLastValue());
-        this.registry.set('group', () => new AggregatorLastValue());
+        this.registry.set('count', (meta) => new AggregatorCount());
+        this.registry.set('countDistinct', (meta) => new AggregatorCountDistinct());
+        this.registry.set('sum', (meta) => new AggregatorSum());
+        this.registry.set('average', (meta) => new AggregatorAverage());
+        this.registry.set('averageNonZero', (meta) => new AggregatorAverageIgnoreZeros());
+        this.registry.set('first', (meta) => new AggregatorFirstValue());
+        this.registry.set('last', (meta) => new AggregatorLastValue());
+        this.registry.set('group', (meta) => new AggregatorLastValue());
     }
-    make(name) {
+    make(name, ds) {
         const aggregator = this.registry.get(name);
         if (!aggregator) {
             throw `No aggregator found with name ${name}`;
         }
-        return aggregator();
+        return aggregator(ds.meta);
+    }
+    static get() {
+        return DataSourceAggregatorFactory.instance;
     }
 }
+DataSourceAggregatorFactory.instance = new DataSourceAggregatorFactory();
 class DataSource {
     constructor(meta, data, name) {
         this.meta = meta;
@@ -127,7 +145,7 @@ class DataSource {
         return new DataSource(this.meta, this.data.filter(x => filterFn(this.meta, x)));
     }
     group(aggregate, comparator) {
-        const aggregatorFactory = new DataSourceAggregatorFactory();
+        const aggregatorFactory = DataSourceAggregatorFactory.get();
         const aggregatorMap = aggregate.reduce((o, i) => o.set(i.alias || i.field, i), new Map);
         const groupFields = aggregate.filter(x => x.aggregator === 'group').map(x => x.field);
         const groupIndex = new Map;
@@ -136,7 +154,12 @@ class DataSource {
             .map(x => x.alias || x.field)
             .map((field, index) => { return { name: field, index: index }; });
         metaSorted.forEach(m => {
-            sourceIndex[m.index] = this.meta.get(aggregatorMap.get(m.name).field).index;
+            const field = aggregatorMap.get(m.name).field;
+            const meta = this.meta.get(field);
+            if (!meta) {
+                throw "No field found with name " + field;
+            }
+            sourceIndex[m.index] = meta.index;
         });
         const data = [];
         this.data.forEach(row => {
@@ -145,13 +168,13 @@ class DataSource {
                 data.push([]);
                 groupIndex.set(group, {
                     index: data.length - 1,
-                    aggregators: metaSorted.map(m => aggregatorFactory.make(aggregatorMap.get(m.name).aggregator))
+                    aggregators: metaSorted.map(m => aggregatorFactory.make(aggregatorMap.get(m.name).aggregator, this))
                 });
             }
             const groupMeta = groupIndex.get(group);
             const rowArray = data[groupMeta.index];
             metaSorted.forEach(m => {
-                rowArray[m.index] = groupMeta.aggregators[m.index].aggregate(m.name, row[sourceIndex[m.index]]);
+                rowArray[m.index] = groupMeta.aggregators[m.index].aggregate(m.name, row[sourceIndex[m.index]], row);
             });
         });
         const meta = metaSorted.reduce((o, i) => o.set(i.name, i), new Map);

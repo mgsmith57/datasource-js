@@ -255,18 +255,24 @@ class DataSourceFilterGroup {
 }
 
 class DataSourceMultiSelectFilterControl extends DataSourceFilterControl {
+    dropdownContainer: HTMLElement;
+    dropdown: HTMLElement;
+    checkAll: HTMLInputElement;
+    buttonLabel: HTMLElement;
+    buttonPill: HTMLElement;
 
     constructor(element: HTMLElement, group: DataSourceFilterGroup) {
         super(element, group);
     }
 
     private buildFilter(): void {
-        const inputs = this.element.querySelectorAll('li input');
-        const checked = this.element.querySelectorAll('li input:checked');
+        const inputs = this.dropdown.querySelectorAll('li input');
+        const checked = this.dropdown.querySelectorAll('li input:checked');
         let filter: string = '';
 
         if (inputs.length != 0 && checked.length == 0) {
-            filter = '1 === 0'
+            // filter = '1 === 0'
+            filter = '';
         } else if (inputs.length == checked.length) {
             filter = '';
         } else {
@@ -284,27 +290,113 @@ class DataSourceMultiSelectFilterControl extends DataSourceFilterControl {
         }
     }
 
+    private updateButton(): void {
+        const inputs = this.dropdown.querySelectorAll('li input');
+        const checked = this.dropdown.querySelectorAll('li input:checked');
+        const values = Array.from(checked).map((e: HTMLElement) => e.getAttribute("value")).sort();
+
+        if(checked.length == 0 || inputs.length == checked.length) {
+            this.buttonLabel.innerText = this.fieldTitle;
+            this.buttonPill.innerText = '';
+            this.buttonLabel.setAttribute('title', null);
+        } else {
+            this.buttonLabel.innerText = this.fieldTitle + '...';
+            this.buttonPill.innerText = ` (${checked.length})`;
+            this.buttonLabel.setAttribute('title', values.join(','));
+        }
+    }
+
+    private updateCheckAll() {
+        const inputs = this.dropdown.querySelectorAll('li input').length;
+        const checked = this.dropdown.querySelectorAll('li input:checked').length;
+        this.checkAll.disabled = inputs == 0;
+        this.checkAll.checked = checked == inputs;
+        this.checkAll.indeterminate = checked > 0 && checked < inputs;
+    }
+
     render(): void {
         const that = this;
 
         function selectionChange() {
+            that.updateButton();
             that.buildFilter();
+            that.updateCheckAll();
         }
 
-        const checked = this.element.querySelectorAll('li input:checked');
-        const values = new Set(Array.from(checked).map((e: HTMLElement) => e.getAttribute("value")));
+        function toggleDropdown() {
+            that.dropdownContainer.style.display = 'block'
+            that.dropdownContainer.focus();
+        }
+
+        function onCheckAll(event) {
+            const inputs = that.dropdown.querySelectorAll('li input');
+            Array.from(inputs).forEach((e : HTMLInputElement) => {
+                e.checked = that.checkAll.checked;
+            })
+            selectionChange();
+        }
 
         const data = this.group.filterWithoutElement(this);
         const list = document.createElement('ol');
-        this.element.replaceChildren();
+        if (!this.dropdown) {
+            const button = document.createElement('div');
+            button.classList.add('ds-filter-button');
+            button.addEventListener('click', toggleDropdown);
+
+            this.buttonLabel = document.createElement('span');
+            this.buttonLabel.classList.add('ds-filter-button-label');
+            this.buttonLabel.innerText = this.fieldTitle;
+            button.appendChild(this.buttonLabel);
+
+            this.buttonPill = document.createElement('span');
+            this.buttonPill.classList.add('ds-filter-button-pill');
+            button.appendChild(this.buttonPill);
+            this.element.appendChild(button);
+
+            this.dropdownContainer = document.createElement('div');
+            this.dropdownContainer.classList.add('ds-filter-dropdown-container')
+            this.dropdownContainer.tabIndex = -1;
+            this.element.appendChild(this.dropdownContainer);
+
+            const dropdownHeader = document.createElement('div');
+            dropdownHeader.classList.add('ds-filter-dropdown-header')
+            this.dropdownContainer.appendChild(dropdownHeader);
+
+            this.checkAll = document.createElement('input');
+            this.checkAll.setAttribute('type', 'checkbox');
+            this.checkAll.classList.add('ds-filter-header-checkall');
+            this.checkAll.addEventListener('change', onCheckAll);
+            dropdownHeader.appendChild(this.checkAll);
+
+            const dropdownLabel = document.createElement('span');
+            dropdownLabel.classList.add('ds-filter-header-field')
+            dropdownLabel.innerText = this.fieldTitle;
+            dropdownHeader.appendChild(dropdownLabel);
+
+            const dropdownMetric = document.createElement('span');
+            dropdownMetric.classList.add('ds-filter-header-metric')
+            dropdownMetric.innerText = this.metric.alias;
+            dropdownHeader.appendChild(dropdownMetric);
+
+            this.dropdown = document.createElement('div');
+            this.dropdown.classList.add('ds-filter-dropdown')
+            this.dropdownContainer.appendChild(this.dropdown);
+        }
+
+        const checked = this.dropdown.querySelectorAll('li input:checked');
+        const values = new Set(Array.from(checked).map((e: HTMLElement) => e.getAttribute("value")));
+        this.dropdown.replaceChildren();
         data.data.forEach(r => {
             const v = r[0];
             const input = document.createElement('input');
             input.setAttribute('type', 'checkbox');
-            input.checked = values.has(v) || checked.length == 0;
             input.setAttribute('value', v);
+            input.checked = values.has(v) || checked.length == 0;
+            input.classList.add('ds-filter-item-select');
             input.addEventListener('change', selectionChange.bind(this));
+
             const label = document.createElement('label');
+            label.classList.add('ds-filter-item-value')
             label.appendChild(document.createTextNode(v));
 
             const item = document.createElement('li');
@@ -313,14 +405,20 @@ class DataSourceMultiSelectFilterControl extends DataSourceFilterControl {
 
             if (r.length > 1) {
                 const mlabel = document.createElement('label');
-                mlabel.appendChild(document.createTextNode(` (${r[1]})`));
+                mlabel.classList.add('ds-filter-item-metric')
+                mlabel.appendChild(document.createTextNode(
+                    typeof r[1] === 'number'
+                        ? r[1].toLocaleString('en', {useGrouping:true})
+                        : r[1]));
                 item.appendChild(mlabel);
             }
 
             list.appendChild(item);
         });
-        this.element.appendChild(list);
-        this.buildFilter();
+        this.dropdown.appendChild(list);
+        that.updateButton();
+        that.buildFilter();
+        that.updateCheckAll();
     }
 }
 

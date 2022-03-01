@@ -1,0 +1,102 @@
+[data-ds-filter-control=multi-select] {
+  position: relative;
+  margin: 0.5rem 0;
+}
+[data-ds-filter-control=multi-select] .ds-filter-button {
+  background-color: #E1140A;
+  color: white;
+  cursor: pointer;
+  font-size: 0.9rem;
+  padding: 0.25rem 0.5rem;
+  display: flex;
+  flex-direction: row;
+}
+[data-ds-filter-control=multi-select] .ds-filter-button .ds-filter-button-label {
+  flex-grow: 1;
+  justify-content: flex-start;
+}
+[data-ds-filter-control=multi-select] .ds-filter-button .ds-filter-button-pill {
+  justify-content: flex-end;
+}
+[data-ds-filter-control=multi-select] .ds-filter-button:after {
+  content: '\25BC';
+  line-height: 1.333rem;
+  font-size: 0.75rem;
+}
+[data-ds-filter-control=multi-select] .ds-filter-dropdown-container {
+  position: absolute;
+  z-index: 100;
+  background-color: white;
+  border: 1px solid #888888;
+  box-shadow: 10px 10px 8px #888888;
+  left: 0;
+  right: 0;
+  top: -1000px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+[data-ds-filter-control=multi-select] .ds-filter-dropdown-container .ds-filter-dropdown-header {
+  background-color: #E1140A;
+  color: white;
+  font-size: 0.9rem;
+  font-weight: 700;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 0.25rem 0.5rem;
+}
+[data-ds-filter-control=multi-select] .ds-filter-dropdown-container .ds-filter-dropdown-header .ds-filter-header-checkall {
+  accent-color: #E1140AAA;
+}
+[data-ds-filter-control=multi-select] .ds-filter-dropdown-container .ds-filter-dropdown-header .ds-filter-header-field {
+  flex-grow: 1;
+  justify-content: flex-start;
+  padding: 0 0.25rem;
+}
+[data-ds-filter-control=multi-select] .ds-filter-dropdown-container .ds-filter-dropdown-header .ds-filter-header-metric {
+  justify-content: flex-end;
+}
+[data-ds-filter-control=multi-select] .ds-filter-dropdown-container ol {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  font-size: 0.9rem;
+}
+[data-ds-filter-control=multi-select] .ds-filter-dropdown-container ol li {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 0.25rem 0.5rem;
+}
+[data-ds-filter-control=multi-select] .ds-filter-dropdown-container ol li:hover {
+  background-color: #eee;
+}
+[data-ds-filter-control=multi-select] .ds-filter-dropdown-container ol li .ds-filter-item-select {
+  accent-color: #E1140A;
+}
+[data-ds-filter-control=multi-select] .ds-filter-dropdown-container ol li .ds-filter-item-value {
+  flex-grow: 1;
+  justify-content: flex-start;
+  padding: 0 0.25rem;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+[data-ds-filter-control=multi-select] .ds-filter-dropdown-container ol li .ds-filter-item-metric {
+  justify-content: flex-end;
+  padding: 0;
+  margin: 0;
+}
+[data-ds-filter-control=multi-select] .ds-filter-dropdown-container ol li .ds-filter-item-metric:before {
+  content: '(';
+}
+[data-ds-filter-control=multi-select] .ds-filter-dropdown-container ol li .ds-filter-item-metric:after {
+  content: ')';
+}
+[data-ds-filter-control=multi-select] .ds-filter-dropdown-container:focus,
+[data-ds-filter-control=multi-select] .ds-filter-dropdown-container:focus-within {
+  top: 0;
+  outline: 0!important;
+}
+/*# sourceMappingURL=nls-datasource-dom.css.map */
